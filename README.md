@@ -32,7 +32,7 @@ public sealed class AppContext : DbContext
 }
 ```
 
-The public namespace is now `IoTSharp.EntityFrameworkCore`. The project, assembly, package, solution entry, and examples use the `IoTSharp.EntityFrameworkCore.LiteDB` name. A locally packed version is available for validation; the command above applies after the new package has been published.
+The public namespace is now `IoTSharp.EntityFrameworkCore`. The project, assembly, package, solution entry, and examples use the `IoTSharp.EntityFrameworkCore.LiteDB` name. The first public release, [1.0.0](https://www.nuget.org/packages/IoTSharp.EntityFrameworkCore.LiteDB/1.0.0), is available on NuGet.org.
 
 ## Verification
 
@@ -59,7 +59,7 @@ Create the tag on a committed revision containing the release workflow and all i
 
 ## Migration from the former package
 
-`MaikeBing.EntityFrameworkCore.LiteDB` is deprecated in this repository and does not receive the EF Core 10 implementation. Install `IoTSharp.EntityFrameworkCore.LiteDB`, change `using MaikeBing.EntityFrameworkCore;` to `using IoTSharp.EntityFrameworkCore;`, and keep the existing `UseLiteDB(...)` call. The old NuGet package's online deprecation flag requires a separate owner action, detailed in [docs/nuget-deprecation.md](docs/nuget-deprecation.md).
+`MaikeBing.EntityFrameworkCore.LiteDB` is deprecated on NuGet.org, where both historical versions recommend `IoTSharp.EntityFrameworkCore.LiteDB`. Install the new package, change `using MaikeBing.EntityFrameworkCore;` to `using IoTSharp.EntityFrameworkCore;`, and keep the existing `UseLiteDB(...)` call. The verified online settings are recorded in [docs/nuget-deprecation.md](docs/nuget-deprecation.md).
 
 Back up and export data with the old provider before migration. The new provider's key encoding, BSON layout and collection mapping are not a promise to read legacy provider files in place. The namespace/assembly rename also requires recompilation of consumers.
 
