@@ -31,7 +31,7 @@ Install-Package IoTSharp.EntityFrameworkCore.LiteDB
 ```
 
 ```xml
-<PackageReference Include="IoTSharp.EntityFrameworkCore.LiteDB" Version="1.0.0" />
+<PackageReference Include="IoTSharp.EntityFrameworkCore.LiteDB" Version="1.1.0" />
 ```
 
 Configure a context with a LiteDB connection string or file path:
@@ -47,7 +47,7 @@ public sealed class AppContext : DbContext
 }
 ```
 
-The public namespace is now `IoTSharp.EntityFrameworkCore`. The project, assembly, package, solution entry, and examples use the `IoTSharp.EntityFrameworkCore.LiteDB` name. The first public release, [1.0.0](https://www.nuget.org/packages/IoTSharp.EntityFrameworkCore.LiteDB/1.0.0), is the previously published baseline. The follow-up capabilities described above are in the current source and verified local package; they require a later package release and are not claimed to be present in that already published version.
+The public namespace is now `IoTSharp.EntityFrameworkCore`. The project, assembly, package, solution entry, and examples use the `IoTSharp.EntityFrameworkCore.LiteDB` name. Version 1.1.0 is the release candidate for the follow-up capabilities described above; its publication and public consumer checks are recorded in [docs/nuget-release.md](docs/nuget-release.md). The earlier 1.0.0 package contains the initial baseline.
 
 ## Verification
 

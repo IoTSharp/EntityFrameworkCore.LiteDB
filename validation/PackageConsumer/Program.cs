@@ -38,18 +38,31 @@ try
     var location = typeof(LiteDBDatabaseRoot).Assembly.Location;
     var cache = Environment.GetEnvironmentVariable("NUGET_PACKAGES");
     Check(cache != null, "isolated package cache");
-    var packageFile = Path.GetFullPath("artifacts/packages/IoTSharp.EntityFrameworkCore.LiteDB.1.0.0.nupkg");
-    var cachedFile = Path.Combine(cache!, "iotsharp.entityframeworkcore.litedb", "1.0.0", "iotsharp.entityframeworkcore.litedb.1.0.0.nupkg");
+    var packageVersion = Environment.GetEnvironmentVariable("RELEASE_PACKAGE_VERSION") ?? "1.1.0";
+    var publicConsumer = Environment.GetEnvironmentVariable("RELEASE_PUBLIC_CONSUMER") == "1";
+    var packageFile = Environment.GetEnvironmentVariable("RELEASE_PACKAGE_ARCHIVE")
+        ?? Path.GetFullPath($"artifacts/packages/IoTSharp.EntityFrameworkCore.LiteDB.{packageVersion}.nupkg");
+    var cachedFile = Path.Combine(cache!, "iotsharp.entityframeworkcore.litedb", packageVersion, $"iotsharp.entityframeworkcore.litedb.{packageVersion}.nupkg");
     string Hash(string path) => Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(File.ReadAllBytes(path)));
-    var cachedAssembly = Path.Combine(cache!, "iotsharp.entityframeworkcore.litedb", "1.0.0", "lib", "net10.0", "IoTSharp.EntityFrameworkCore.LiteDB.dll");
+    var cachedAssembly = Path.Combine(cache!, "iotsharp.entityframeworkcore.litedb", packageVersion, "lib", "net10.0", "IoTSharp.EntityFrameworkCore.LiteDB.dll");
     Check(Hash(location) == Hash(cachedAssembly), "isolated package assembly");
-    Check(Hash(packageFile) == Hash(cachedFile), "exact packed archive");
+    // NuGet can add repository signatures to the published ZIP; DLL identity is the public contract.
+    if (!publicConsumer) Check(Hash(packageFile) == Hash(cachedFile), "exact packed archive");
     using var archive = System.IO.Compression.ZipFile.OpenRead(packageFile);
+    using var providerDll = archive.GetEntry("lib/net10.0/IoTSharp.EntityFrameworkCore.LiteDB.dll")!.Open();
+    Check(Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(providerDll)) == Hash(cachedAssembly), "CI archive DLL equals consumed DLL");
     var nuspec = archive.Entries.Single(e => e.Name.EndsWith(".nuspec", StringComparison.Ordinal));
     using var metadata = nuspec.Open();
-    var dependencies = System.Xml.Linq.XDocument.Load(metadata).Descendants().Where(e => e.Name.LocalName == "dependency").Select(e => (string)e.Attribute("id")!).Order().ToArray();
+    var document = System.Xml.Linq.XDocument.Load(metadata);
+    var dependencies = document.Descendants().Where(e => e.Name.LocalName == "dependency").Select(e => (string)e.Attribute("id")!).Order().ToArray();
     Check(dependencies.SequenceEqual(new[] { "LiteDB", "Microsoft.EntityFrameworkCore" }), "only two runtime dependencies");
-    Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new { packageConsumer = "PASS", asyncCrud = "PASS", bulk = "PASS", complex = "PASS", generated = "PASS", reopen = "PASS", rollback = "PASS", compiledQuery = "PASS", archiveMatch = "PASS", packageSha256 = Hash(packageFile), dependencies, assembly = location, cachedAssembly }));
+    Check(document.Descendants().Single(e => e.Name.LocalName == "version").Value == packageVersion, "package version");
+    var commit = (string?)document.Descendants().Single(e => e.Name.LocalName == "repository").Attribute("commit");
+    var expectedCommit = Environment.GetEnvironmentVariable("RELEASE_COMMIT");
+    var informationalVersion = typeof(LiteDBDatabaseRoot).Assembly.GetCustomAttributes(typeof(System.Reflection.AssemblyInformationalVersionAttribute), false)
+        .Cast<System.Reflection.AssemblyInformationalVersionAttribute>().Single().InformationalVersion;
+    if (expectedCommit != null) Check(commit == expectedCommit && informationalVersion.Contains(expectedCommit, StringComparison.OrdinalIgnoreCase), "release source commit");
+    Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new { packageConsumer = "PASS", publicConsumer, packageVersion, asyncCrud = "PASS", bulk = "PASS", complex = "PASS", generated = "PASS", reopen = "PASS", rollback = "PASS", compiledQuery = "PASS", dllMatch = "PASS", packageSha256 = Hash(packageFile), dependencies, commit, informationalVersion, assembly = location, cachedAssembly }));
 }
 finally
 {
