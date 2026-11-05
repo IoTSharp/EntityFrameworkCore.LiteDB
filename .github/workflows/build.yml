@@ -37,11 +37,7 @@ jobs:
 
   test:
     needs: version
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-    runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -55,10 +51,9 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: results-${{ matrix.os }}
+          name: results
           path: artifacts/
       - name: Keep the tested package for publication
-        if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
           name: nuget-package

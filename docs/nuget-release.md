@@ -6,10 +6,10 @@ The first public release of this new package ID is `v1.0.0` / NuGet `1.0.0`. The
 
 ## Trigger and version
 
-- Branch pushes and pull requests restore, build, test, and pack on Ubuntu and Windows without publishing.
+- Branch pushes and pull requests restore, build, test, and pack on `ubuntu-latest` without publishing. This provider has no platform-specific code that requires a separate Windows CI job.
 - Pushing `v1.0.1` produces package version `1.0.1`. Tags must use lowercase `vMAJOR.MINOR.PATCH`, with no leading zeroes, suffixes, or extra version components. Components are limited to 65534 by .NET assembly version constraints.
-- Both operating systems must pass before the publish job runs. A failing matrix job does not cancel the other operating system, so both sets of results remain available.
-- The publish job downloads the exact `.nupkg` uploaded by the successful Ubuntu job. It does not rebuild the package and only pushes to `https://api.nuget.org/v3/index.json`.
+- The Ubuntu test job must pass before the publish job runs.
+- The publish job downloads the exact `.nupkg` uploaded by the successful test job. It does not rebuild the package and only pushes to `https://api.nuget.org/v3/index.json`.
 - `Version` is passed to both build and pack. The SDK derives assembly and file versions from it; they are no longer pinned at `1.0.0.0`.
 - Concurrent runs for the same ref are serialized. Published versions are immutable; duplicate uploads fail rather than being treated as successful replacements.
 

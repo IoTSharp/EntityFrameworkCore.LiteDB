@@ -48,7 +48,7 @@ The detailed capability boundary is in [SUPPORT.md](SUPPORT.md). Unsupported rel
 
 ## Releases to NuGet.org
 
-Push a tag such as `v1.0.1` to publish package version `1.0.1`. The workflow validates the tag, builds and tests on Linux and Windows, and uploads the exact package produced by the Linux job only after both jobs succeed. Branch and pull request builds validate and pack without publishing.
+Push a tag such as `v1.0.1` to publish package version `1.0.1`. The workflow validates the tag, builds and tests on Ubuntu, and uploads the exact tested package only after validation succeeds. Branch and pull request builds validate and pack without publishing.
 
 ```powershell
 git tag -a v1.0.1 -m "Release 1.0.1"
