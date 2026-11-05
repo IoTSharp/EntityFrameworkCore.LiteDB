@@ -62,4 +62,4 @@
 
 本仓库已将 `MaikeBing.EntityFrameworkCore.LiteDB` 定为废弃包，替代项为 `IoTSharp.EntityFrameworkCore.LiteDB`，原项目名 `MaikeBing.EntityFrameworkCore.NoSqLiteDB` 已移除。
 
-NuGet.org 上历史版本的 Deprecated 标志是独立的账号操作，不能通过改 `.csproj` 自动生效。新包应先发布并公开回读，然后由包所有者对旧包的全部版本设置 Legacy 和替代包；待执行的确切内容见 [docs/nuget-deprecation.md](docs/nuget-deprecation.md)。当前代码交付不表示已完成在线发布或在线废弃标记。
+NuGet.org 的 Deprecated 标志是独立账号操作，不能通过 `.csproj` 生效。另一个会话已经提交首版 1.0.0 与旧包两个版本的 Legacy/替代包回执，见 [docs/nuget-deprecation.md](docs/nuget-deprecation.md)。该线上 1.0.0 属于先前基线，**不包含本次后续功能提交**；本次交付只提交/推送源代码并验证本地包，未再次发布 NuGet，也未更改线上旧包。

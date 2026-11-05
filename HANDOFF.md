@@ -12,11 +12,13 @@
 - LDB-009：LiteDBDataArchive显式集合导出、版本化BSON JSONL、映射导入、数量/版本/限额/尾记录校验、原子事务、用户Tracker/事务保护。旧6826e3a布局fixture迁移通过；未运行旧EF6程序集，不承诺自动原地升级或二进制兼容。
 - LDB-001/002/003：保留真实关系API/ambient/savepoint失败证据，新增nested transaction及未加载FK/cascade行为回归；替代方案仍为应用升级、单context本地事务、EF客户端级联。
 
-完整 Windows Release 首轮集成为 **133/133 PASS、0 skipped，0 build warnings/errors**，证据 `artifacts/tests/phase3-full.trx`。最终门禁和隔离包消费的实际结果在 `artifacts/validation/ef10-followup-final-receipt.json`，不得用旧65项或首轮133项替代最终源码验收。Compiled probe源码在validation/CompiledModelProbe，生成文件明确不入库；PackageConsumer只引用最终NuGet包，无project reference，必须使用新的专属NUGET_PACKAGES目录。
+完整 Windows Release 首轮与最终门禁均为 **133/133 PASS、0 skipped，0 build warnings/errors**；最终门禁使用Rebuild、ContinuousIntegrationBuild=true，证据 `artifacts/tests/ef10-followup-final.trx` 和 `artifacts/validation/ef10-followup-final-gates.json`。隔离包消费者已验证异步CRUD/Bulk/optional complex/生成值/回滚/重开，读取DLL与全新缓存DLL哈希相等，缓存nupkg与最终nupkg哈希相等，nuspec运行时依赖只有LiteDB与EF Core。完整结果在 `artifacts/validation/ef10-followup-final-receipt.json`。Compiled probe源码在validation/CompiledModelProbe，生成文件明确不入库；PackageConsumer无project reference，必须使用新的专属NUGET_PACKAGES目录。
+
+功能源码已提交推送为 `83888aa0b676014113ebef37a8c2801083c8abef`，本地HEAD/origin/master/远端master回读一致；该SHA远端Ubuntu CI `42076065611` PASS，restore/build/test/pack步骤成功，publish按分支规则skipped。随后仅同步发布基线边界与验收说明，最终Git状态以本轮回读/receipt为准。
 
 ## 同工作区其他会话与远端边界
 
-开工HEAD为305890e；期间其他会话在同一master提交并推送1ee4af3（tag发布流程/诊断修复）和d145613（Ubuntu单平台CI），它们已存在于当前提交祖先，未reset/覆盖。当前CI须以实时.github/workflows/build.yml为准，已改为Ubuntu restore/build/test/pack且只tag触发publish。本任务只推源码分支，不推tag、不发布NuGet。工作区新出现的`.playwright-cli/`属于其他会话，保留且不stage/清理。
+开工HEAD为305890e；期间其他会话在同一master提交并推送1ee4af3（tag发布流程/诊断修复）、d145613（Ubuntu单平台CI）和c3b7962（1.0.0发布及旧包废弃回执），它们已存在于当前提交祖先，未reset/覆盖。当前CI以实时.github/workflows/build.yml为准，Ubuntu restore/build/test/pack且只tag触发publish。本任务只推源码分支、不推tag、不发布NuGet；线上1.0.0为先前基线，不能当作本次功能已发布。新出现的`.playwright-cli/`属于其他会话，未stage/清理，后来被其所有者移除。
 
 GitHub先前3条Dependabot告警独立回读均为fixed（旧LiteDB5.0.12、jQuery3.3.1），本轮`dotnet list package --vulnerable --include-transitive --no-restore`未报告漏洞。最终远端CI仍须绑定本次功能提交精确SHA回读，不能拿基线或其他会话CI替代。
 

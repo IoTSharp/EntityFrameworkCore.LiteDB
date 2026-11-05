@@ -47,7 +47,7 @@ public sealed class AppContext : DbContext
 }
 ```
 
-The public namespace is now `IoTSharp.EntityFrameworkCore`. The project, assembly, package, solution entry, and examples use the `IoTSharp.EntityFrameworkCore.LiteDB` name. The first public release, [1.0.0](https://www.nuget.org/packages/IoTSharp.EntityFrameworkCore.LiteDB/1.0.0), is available on NuGet.org.
+The public namespace is now `IoTSharp.EntityFrameworkCore`. The project, assembly, package, solution entry, and examples use the `IoTSharp.EntityFrameworkCore.LiteDB` name. The first public release, [1.0.0](https://www.nuget.org/packages/IoTSharp.EntityFrameworkCore.LiteDB/1.0.0), is the previously published baseline. The follow-up capabilities described above are in the current source and verified local package; they require a later package release and are not claimed to be present in that already published version.
 
 ## Verification
 
