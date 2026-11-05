@@ -5,7 +5,7 @@ namespace System.Runtime.CompilerServices
 {
     [AttributeUsage(AttributeTargets.Parameter,
                    AllowMultiple = false)]
-    public class NotNullWhenTrueAttribute : Attribute
+    internal class NotNullWhenTrueAttribute : Attribute
     {
         public NotNullWhenTrueAttribute() { }
     }

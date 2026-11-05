@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
 using System.Runtime.CompilerServices;
+using System.Linq.Expressions;
 
 
 // ReSharper disable once CheckNamespace
@@ -15,6 +16,11 @@ namespace System
     internal static class SharedTypeExtensions
     {
         public static Type UnwrapNullableType(this Type type) => Nullable.GetUnderlyingType(type) ?? type;
+
+        public static bool IsNullableValueType(this Type type) => Nullable.GetUnderlyingType(type) != null;
+
+        public static ConstantExpression GetDefaultValueConstant(this Type type)
+            => Expression.Constant(type.IsValueType ? Activator.CreateInstance(type) : null, type);
 
         public static bool IsNullableType(this Type type)
         {
@@ -120,8 +126,7 @@ namespace System
 
         private static bool IsGrouping(TypeInfo type)
             => type.IsGenericType
-               && (type.GetGenericTypeDefinition() == typeof(IGrouping<,>)
-                   || type.GetGenericTypeDefinition() == typeof(IAsyncGrouping<,>));
+               && type.GetGenericTypeDefinition() == typeof(IGrouping<,>);
 
         public static Type UnwrapEnumType(this Type type)
         {

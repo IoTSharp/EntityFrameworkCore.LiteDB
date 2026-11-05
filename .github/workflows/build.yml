@@ -1,0 +1,27 @@
+name: Build and test EF Core 10 provider
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - run: dotnet restore IoTSharp.EntityFrameworkCore.LiteDB.sln
+      - run: dotnet build IoTSharp.EntityFrameworkCore.LiteDB.sln -c Release --no-restore
+      - run: dotnet test IoTSharp.EntityFrameworkCore.LiteDB.Tests -c Release --no-build --no-restore --logger trx --results-directory artifacts/tests
+      - run: dotnet pack IoTSharp.EntityFrameworkCore.LiteDB -c Release --no-build --no-restore -o artifacts/packages
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: results-${{ matrix.os }}
+          path: artifacts/

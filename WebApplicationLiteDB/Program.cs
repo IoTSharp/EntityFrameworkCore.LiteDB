@@ -1,4 +1,4 @@
-using MaikeBing.EntityFrameworkCore;
+using IoTSharp.EntityFrameworkCore;
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using WebApplicationLiteDB.Data;
@@ -15,7 +15,6 @@ namespace WebApplicationLiteDB
             var connectionString = builder.Configuration.GetConnectionString("DefaultConnection") ?? throw new InvalidOperationException("Connection string 'DefaultConnection' not found.");
             builder.Services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseLiteDB(connectionString));
-            builder.Services.AddDatabaseDeveloperPageExceptionFilter();
 
             builder.Services.AddDefaultIdentity<IdentityUser>(options => options.SignIn.RequireConfirmedAccount = true)
                 .AddEntityFrameworkStores<ApplicationDbContext>();
@@ -24,11 +23,11 @@ namespace WebApplicationLiteDB
             var app = builder.Build();
 
             // Configure the HTTP request pipeline.
-            if (app.Environment.IsDevelopment())
+            using (var scope = app.Services.CreateScope())
             {
-                app.UseMigrationsEndPoint();
+                scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Database.EnsureCreated();
             }
-            else
+            if (!app.Environment.IsDevelopment())
             {
                 app.UseExceptionHandler("/Error");
                 // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.

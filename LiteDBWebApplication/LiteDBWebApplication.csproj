@@ -1,17 +1,16 @@
-﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
-    <TargetFramework>net6.0</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="6.0.8" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Relational" Version="6.0.8" />
-    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="6.0.8" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="10.0.14" />
+    <PackageReference Include="Microsoft.AspNetCore.Identity.UI" Version="10.0.14" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\MaikeBing.EntityFrameworkCore.NoSqLiteDB\MaikeBing.EntityFrameworkCore.NoSqLiteDB.csproj" />
+    <ProjectReference Include="..\IoTSharp.EntityFrameworkCore.LiteDB\IoTSharp.EntityFrameworkCore.LiteDB.csproj" />
   </ItemGroup>
 
 </Project>

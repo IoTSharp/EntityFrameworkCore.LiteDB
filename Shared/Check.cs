@@ -17,6 +17,11 @@ namespace Microsoft.EntityFrameworkCore.Utilities
     [DebuggerStepThrough]
     internal static class Check
     {
+        [Conditional("DEBUG")]
+        public static void DebugAssert(bool condition, string message)
+        {
+            Debug.Assert(condition, message);
+        }
         [ContractAnnotation("value:null => halt")]
         public static T NotNull<T>([NoEnumeration] T value, [InvokerParameterName] [NotNull] string parameterName)
         {
@@ -41,7 +46,7 @@ namespace Microsoft.EntityFrameworkCore.Utilities
             {
                 NotEmpty(parameterName, nameof(parameterName));
 
-                throw new ArgumentException(AbstractionsStrings.CollectionArgumentIsEmpty(parameterName));
+                throw new ArgumentException($"The collection argument '{parameterName}' cannot be empty.");
             }
 
             return value;
@@ -57,7 +62,7 @@ namespace Microsoft.EntityFrameworkCore.Utilities
             }
             else if (value.Trim().Length == 0)
             {
-                e = new ArgumentException(AbstractionsStrings.ArgumentIsEmpty(parameterName));
+                e = new ArgumentException($"The argument '{parameterName}' cannot be empty.");
             }
 
             if (e != null)
@@ -77,7 +82,7 @@ namespace Microsoft.EntityFrameworkCore.Utilities
             {
                 NotEmpty(parameterName, nameof(parameterName));
 
-                throw new ArgumentException(AbstractionsStrings.ArgumentIsEmpty(parameterName));
+                throw new ArgumentException($"The argument '{parameterName}' cannot be empty.");
             }
 
             return value;

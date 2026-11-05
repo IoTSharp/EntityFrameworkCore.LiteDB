@@ -47,7 +47,6 @@ namespace LiteDBConsoleApp
                     Console.WriteLine();
                 }
             }
-            Console.Read();
         }
     }
 }

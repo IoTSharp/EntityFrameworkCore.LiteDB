@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -12,7 +12,7 @@ using Microsoft.EntityFrameworkCore;
 using LiteDBWebApplication.Data;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
-using MaikeBing.EntityFrameworkCore;
+using IoTSharp.EntityFrameworkCore;
 namespace LiteDBWebApplication
 {
     public class Startup
@@ -37,7 +37,8 @@ namespace LiteDBWebApplication
             services.AddDbContext<ApplicationDbContext>(options =>
                 options.UseLiteDB(
                     Configuration.GetConnectionString("DefaultConnection")));
-            services.AddAuthentication();
+            services.AddDefaultIdentity<IdentityUser>()
+                .AddEntityFrameworkStores<ApplicationDbContext>();
             services.AddAuthorization();
             services.AddMvc();
         }
@@ -45,12 +46,16 @@ namespace LiteDBWebApplication
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
         public void Configure(IApplicationBuilder app,  IWebHostEnvironment env)
         {
+            using (var scope = app.ApplicationServices.CreateScope())
+            {
+                scope.ServiceProvider.GetRequiredService<ApplicationDbContext>().Database.EnsureCreated();
+            }
          
             app.UseHttpsRedirection();
             app.UseStaticFiles();
             app.UseCookiePolicy();
-            app.UseAuthentication();
             app.UseRouting();
+            app.UseAuthentication();
             app.UseAuthorization();
             app.UseEndpoints(cfg => cfg.MapDefaultControllerRoute());
         }
