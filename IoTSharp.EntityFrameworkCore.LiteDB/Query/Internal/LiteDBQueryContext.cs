@@ -18,7 +18,7 @@ internal class LiteDBQueryContext : QueryContext
         CancellationToken.ThrowIfCancellationRequested();
         var value = Store.ExecuteScalar(plan, parameters, operation, _sessionId);
         const string eventName = "IoTSharp.EntityFrameworkCore.LiteDB.AggregateExecuted";
-        if (QueryLogger.DiagnosticSource.IsEnabled(eventName)) QueryLogger.DiagnosticSource.Write(eventName, new { Operation = operation });
+        if (QueryLogger.DiagnosticSource.IsEnabled(eventName)) QueryLogger.DiagnosticSource.Write(eventName, new { Operation = operation, ContextId = Context.ContextId });
         return value;
     }
     public IEnumerable<ValueBuffer> ExecuteNative(LiteDBQueryPlan plan, object[] parameters)
@@ -26,7 +26,7 @@ internal class LiteDBQueryContext : QueryContext
         var rows = Store.ExecuteQuery(plan, parameters, CancellationToken, _sessionId);
         const string eventName = "IoTSharp.EntityFrameworkCore.LiteDB.QueryExecuted";
         if (QueryLogger.DiagnosticSource.IsEnabled(eventName))
-            QueryLogger.DiagnosticSource.Write(eventName, new { plan.Predicate, plan.OrderBy, plan.SkipParameter, plan.TakeParameter, RowsRead = rows.Count });
+            QueryLogger.DiagnosticSource.Write(eventName, new { plan.Predicate, plan.OrderBy, plan.SkipParameter, plan.TakeParameter, RowsRead = rows.Count, ContextId = Context.ContextId });
         return rows.Select(row => new ValueBuffer(row));
     }
     private readonly Guid _sessionId;

@@ -13,7 +13,7 @@ public sealed class NativeQueryTests
     {
         using var store = new ProviderTestStore();
         using var db = store.CreateContext();
-        var observer = new QueryObserver();
+        var observer = new QueryObserver(db.ContextId);
         var listener = (DiagnosticListener)db.GetService<IDiagnosticsLogger<DbLoggerCategory.Query>>().DiagnosticSource;
         using var subscription = listener.Subscribe(observer);
         var threshold = 0;
@@ -42,13 +42,33 @@ public sealed class NativeQueryTests
     {
         using var store = new ProviderTestStore();
         using var db = store.CreateContext();
-        var observer = new QueryObserver();
+        var observer = new QueryObserver(db.ContextId);
         var listener = (DiagnosticListener)db.GetService<IDiagnosticsLogger<DbLoggerCategory.Query>>().DiagnosticSource;
         using var subscription = listener.Subscribe(observer);
         Assert.Equal(2, db.Orders.Count(o => o.Amount >= 20));
         Assert.Equal(3L, db.Orders.LongCount());
         Assert.True(db.Orders.Any(o => o.Id == 1));
         Assert.Equal(new[] { "Count", "LongCount", "Any" }, observer.Operations);
+    }
+
+    [Fact]
+    public void Native_diagnostics_ignore_queries_from_other_contexts()
+    {
+        using var store = new ProviderTestStore();
+        using var db = store.CreateContext();
+        using var other = store.CreateContext();
+        var observer = new QueryObserver(db.ContextId);
+        var listener = (DiagnosticListener)db.GetService<IDiagnosticsLogger<DbLoggerCategory.Query>>().DiagnosticSource;
+        using var subscription = listener.Subscribe(observer);
+
+        Assert.Equal(3, other.Orders.Count());
+        Assert.Equal(3L, db.Orders.LongCount());
+        Assert.True(other.Orders.Any());
+        Assert.Single(other.Orders.OrderBy(o => o.Id).Take(1).ToList());
+        Assert.Single(db.Orders.OrderBy(o => o.Id).Take(1).ToList());
+
+        Assert.Equal(new[] { "LongCount" }, observer.Operations);
+        Assert.Single(observer.Events);
     }
 
     [Fact]
@@ -63,12 +83,14 @@ public sealed class NativeQueryTests
         Assert.Equal(0, db.Scalars.Count(s => s.Double == double.NaN));
     }
 
-    private sealed class QueryObserver : IObserver<KeyValuePair<string, object?>>
+    private sealed class QueryObserver(DbContextId contextId) : IObserver<KeyValuePair<string, object?>>
     {
         public List<object> Events { get; } = [];
         public List<string> Operations { get; } = [];
         public void OnNext(KeyValuePair<string, object?> value)
         {
+            if (value.Value?.GetType().GetProperty("ContextId")?.GetValue(value.Value) is not DbContextId eventContext
+                || eventContext != contextId) return;
             if (value.Key == "IoTSharp.EntityFrameworkCore.LiteDB.QueryExecuted" && value.Value != null) Events.Add(value.Value);
             if (value.Key == "IoTSharp.EntityFrameworkCore.LiteDB.AggregateExecuted" && value.Value != null)
                 Operations.Add((string)value.Value.GetType().GetProperty("Operation")!.GetValue(value.Value)!);

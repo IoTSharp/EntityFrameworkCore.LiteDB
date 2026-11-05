@@ -13,11 +13,10 @@
     <Authors>IoTSharp</Authors>
     <Product>IoTSharp.EntityFrameworkCore.LiteDB</Product>
     <GeneratePackageOnBuild>true</GeneratePackageOnBuild>
-    <AssemblyVersion>1.0.0.0</AssemblyVersion>
-    <FileVersion>1.0.0.0</FileVersion>
     <PackageReleaseNotes>Initial IoTSharp package for EF Core 10. The former MaikeBing.EntityFrameworkCore.LiteDB package is deprecated; see README.md and SUPPORT.md for the migration path and supported capabilities.</PackageReleaseNotes>
-    <RepositoryUrl>https://github.com/maikebing/EntityFrameworkCore.LiteDB</RepositoryUrl>
-    <PackageProjectUrl>https://github.com/maikebing/EntityFrameworkCore.LiteDB</PackageProjectUrl>
+    <RepositoryUrl>https://github.com/IoTSharp/EntityFrameworkCore.LiteDB</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    <PackageProjectUrl>https://github.com/IoTSharp/EntityFrameworkCore.LiteDB</PackageProjectUrl>
     <PackageLicenseExpression>MIT</PackageLicenseExpression>
     <Copyright>Copyright 2019-2026 IoTSharp</Copyright>
     <PackageReadmeFile>README.md</PackageReadmeFile>

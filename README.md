@@ -46,6 +46,17 @@ dotnet test .\IoTSharp.EntityFrameworkCore.LiteDB.Tests\IoTSharp.EntityFramework
 
 The detailed capability boundary is in [SUPPORT.md](SUPPORT.md). Unsupported relational APIs must stay marked as unsupported until an implementation and a focused test exist.
 
+## Releases to NuGet.org
+
+Push a tag such as `v1.0.1` to publish package version `1.0.1`. The workflow validates the tag, builds and tests on Linux and Windows, and uploads the exact package produced by the Linux job only after both jobs succeed. Branch and pull request builds validate and pack without publishing.
+
+```powershell
+git tag -a v1.0.1 -m "Release 1.0.1"
+git push origin v1.0.1
+```
+
+Create the tag on a committed revision containing the release workflow and all intended changes. See [docs/nuget-release.md](docs/nuget-release.md) for credential setup, version rules, and publication checks.
+
 ## Migration from the former package
 
 `MaikeBing.EntityFrameworkCore.LiteDB` is deprecated in this repository and does not receive the EF Core 10 implementation. Install `IoTSharp.EntityFrameworkCore.LiteDB`, change `using MaikeBing.EntityFrameworkCore;` to `using IoTSharp.EntityFrameworkCore;`, and keep the existing `UseLiteDB(...)` call. The old NuGet package's online deprecation flag requires a separate owner action, detailed in [docs/nuget-deprecation.md](docs/nuget-deprecation.md).

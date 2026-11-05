@@ -2,11 +2,43 @@ name: Build and test EF Core 10 provider
 
 on:
   push:
+    branches: ['**']
+    tags: ['v*']
   pull_request:
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+  DOTNET_NOLOGO: '1'
+
 jobs:
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      package-version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test tag version validation
+        shell: pwsh
+        run: ./eng/Test-PackageVersion.ps1
+      - name: Resolve and validate package version
+        id: version
+        shell: pwsh
+        run: |
+          $version = & ./eng/Get-PackageVersion.ps1 -Ref $env:GITHUB_REF
+          "version=$version" >> $env:GITHUB_OUTPUT
+
   test:
+    needs: version
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, windows-latest]
     runs-on: ${{ matrix.os }}
@@ -17,11 +49,49 @@ jobs:
         with:
           dotnet-version: '10.0.x'
       - run: dotnet restore IoTSharp.EntityFrameworkCore.LiteDB.sln
-      - run: dotnet build IoTSharp.EntityFrameworkCore.LiteDB.sln -c Release --no-restore
+      - run: dotnet build IoTSharp.EntityFrameworkCore.LiteDB.sln -c Release --no-restore -p:Version=${{ needs.version.outputs.package-version }} -p:ContinuousIntegrationBuild=true
       - run: dotnet test IoTSharp.EntityFrameworkCore.LiteDB.Tests -c Release --no-build --no-restore --logger trx --results-directory artifacts/tests
-      - run: dotnet pack IoTSharp.EntityFrameworkCore.LiteDB -c Release --no-build --no-restore -o artifacts/packages
+      - run: dotnet pack IoTSharp.EntityFrameworkCore.LiteDB -c Release --no-build --no-restore -p:Version=${{ needs.version.outputs.package-version }} -p:ContinuousIntegrationBuild=true -o artifacts/packages
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: results-${{ matrix.os }}
           path: artifacts/
+      - name: Keep the tested package for publication
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: nuget-package
+          path: artifacts/packages/IoTSharp.EntityFrameworkCore.LiteDB.${{ needs.version.outputs.package-version }}.nupkg
+          if-no-files-found: error
+
+  publish:
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
+    needs: [version, test]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check NuGet credential
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+        run: |
+          if [ -z "$NUGET_API_KEY" ]; then
+            echo '::error::Configure the NUGET_API_KEY Actions secret before publishing.'
+            exit 1
+          fi
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/download-artifact@v4
+        with:
+          name: nuget-package
+          path: artifacts/packages
+      - name: Push the tested package to NuGet.org
+        env:
+          NUGET_API_KEY: ${{ secrets.NUGET_API_KEY }}
+          PACKAGE_VERSION: ${{ needs.version.outputs.package-version }}
+        run: |
+          dotnet nuget push "artifacts/packages/IoTSharp.EntityFrameworkCore.LiteDB.$PACKAGE_VERSION.nupkg" \
+            --source https://api.nuget.org/v3/index.json \
+            --api-key "$NUGET_API_KEY" \
+            --timeout 120
