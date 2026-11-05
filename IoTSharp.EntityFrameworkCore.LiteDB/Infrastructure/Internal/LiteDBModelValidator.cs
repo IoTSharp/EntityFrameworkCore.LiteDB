@@ -1,3 +1,5 @@
+using IoTSharp.EntityFrameworkCore.LiteDB.Storage.Internal;
+
 namespace IoTSharp.EntityFrameworkCore.LiteDB.Infrastructure.Internal;
 
 internal sealed class LiteDBModelValidator(ModelValidatorDependencies dependencies) : ModelValidator(dependencies)
@@ -6,11 +8,14 @@ internal sealed class LiteDBModelValidator(ModelValidatorDependencies dependenci
     {
         foreach (var entity in model.GetEntityTypes())
         {
-            if (entity.GetComplexProperties().Any())
-                throw new NotSupportedException($"LiteDB complex properties on '{entity.DisplayName()}' are not yet implemented. Use an owned type or a value converter. See SUPPORT.md (LDB-006).");
-            if (entity.GetProperties().Any(p => p.Name == "_id" || p.Name.StartsWith("__index", StringComparison.Ordinal) || p.Name.StartsWith("__key", StringComparison.Ordinal)))
+            LiteDBComplexPropertyExtensions.Validate(entity);
+            LiteDBGeneratedValues.Validate(entity);
+            if (entity.GetProperties().Any(p => p.Name.Equals("_id", StringComparison.OrdinalIgnoreCase)
+                || p.Name.StartsWith("__index", StringComparison.OrdinalIgnoreCase)
+                || p.Name.StartsWith("__key", StringComparison.OrdinalIgnoreCase)
+                || p.Name.StartsWith("__complexPresence_", StringComparison.OrdinalIgnoreCase) && !LiteDBComplexPresence.IsPresenceProperty(p)))
                 throw new NotSupportedException($"Entity '{entity.DisplayName()}' uses a reserved BSON field name (_id or __index*). Rename the EF property.");
-            if (entity.GetProperties().Any(p => p.ValueGenerated == ValueGenerated.OnAddOrUpdate
+            if (entity.GetLiteDBProperties().Any(p => (p.ValueGenerated == ValueGenerated.OnAddOrUpdate && LiteDBGeneratedValues.FindExpression(p) == null)
                 || p.FindAnnotation("Relational:ComputedColumnSql") != null || p.FindAnnotation("Relational:DefaultValueSql") != null))
                 throw new NotSupportedException($"LiteDB does not implement SQL defaults, computed SQL columns, or database-generated rowversion on '{entity.DisplayName()}'. Use application-generated values or concurrency tokens. See SUPPORT.md (LDB-007).");
         }

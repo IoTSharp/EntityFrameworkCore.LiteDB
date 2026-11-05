@@ -2,7 +2,7 @@ using LiteDB;
 
 namespace IoTSharp.EntityFrameworkCore.LiteDB.Storage.Internal;
 
-internal sealed class LiteDBTable
+internal sealed partial class LiteDBTable
 {
     private readonly ILiteCollection<BsonDocument> _documents;
     private readonly IProperty[] _properties;
@@ -13,7 +13,7 @@ internal sealed class LiteDBTable
 
     public LiteDBTable(LiteDatabase database, IEntityType entityType)
     {
-        _properties = entityType.GetProperties().OrderBy(p => p.GetIndex()).ToArray();
+        _properties = entityType.GetLiteDBProperties().OrderBy(p => p.GetIndex()).ToArray();
         _primaryKey = entityType.FindPrimaryKey();
         _alternateKeys = entityType.GetKeys().Where(key => key != _primaryKey).ToArray();
         _indexes = entityType.GetIndexes().ToArray();
@@ -38,7 +38,7 @@ internal sealed class LiteDBTable
     }
 
     public long Maximum(IProperty property)
-        => _documents.FindAll().Select(doc => LiteDBValueSerialization.Read(property, doc[property.Name]))
+        => _documents.FindAll().Select(doc => LiteDBValueSerialization.Read(property, doc.ReadLiteDBValue(property)))
             .Where(value => value != null).Select(value => Convert.ToInt64(value)).DefaultIfEmpty(0).Max();
 
     public IReadOnlyList<object[]> SnapshotRows(CancellationToken cancellationToken = default)
@@ -52,6 +52,8 @@ internal sealed class LiteDBTable
 
     public object ExecuteScalar(IoTSharp.EntityFrameworkCore.LiteDB.Query.Internal.LiteDBQueryPlan plan, object[] values, string operation)
     {
+        if (plan.AggregateProperty != null)
+            return IoTSharp.EntityFrameworkCore.LiteDB.Query.Internal.Native.LiteDBNativeAggregate.Execute(_documents, plan, values, operation);
         var query = BuildQuery(plan, values);
         return operation switch
         {
@@ -66,8 +68,7 @@ internal sealed class LiteDBTable
     {
         var parameters = new BsonDocument();
         for (var i = 0; i < values.Length; i++)
-            parameters[$"p{i}"] = plan.ParameterProperties[i] is { } property
-                ? LiteDBValueSerialization.Write(property, values[i]) : new BsonValue(values[i]);
+            parameters[$"p{i}"] = plan.CreateParameter(i, values[i]);
         var query = _documents.Query();
         if (plan.Predicate != null) query = query.Where(plan.Predicate, parameters);
         if (plan.OrderBy != null) query = query.OrderBy(plan.OrderBy, plan.Descending ? -1 : 1);
@@ -90,7 +91,7 @@ internal sealed class LiteDBTable
             var values = new object[_properties.Length];
             foreach (var property in _properties)
             {
-                values[property.GetIndex()] = LiteDBValueSerialization.Read(property, document[property.Name]);
+                values[property.GetIndex()] = LiteDBValueSerialization.Read(property, document.ReadLiteDBValue(property));
             }
             rows.Add(values);
         }
@@ -121,6 +122,8 @@ internal sealed class LiteDBTable
         {
             WriteProperty(entry, property, document);
         }
+        LiteDBComplexPresence.Apply(entry, document, _properties);
+        LiteDBGeneratedValues.Apply(entry, document, _properties);
         WriteIndexes(document);
         if (!_documents.Update(document)) throw ConcurrencyException(entry);
         BumpGenerators(entry);
@@ -151,18 +154,21 @@ internal sealed class LiteDBTable
     {
         var document = new BsonDocument { ["_id"] = CreateId(entry) };
         foreach (var property in _properties) WriteProperty(entry, property, document);
+        LiteDBComplexPresence.Apply(entry, document, _properties);
+        LiteDBGeneratedValues.Apply(entry, document, _properties);
         WriteIndexes(document);
         return document;
     }
 
     private static void WriteProperty(IUpdateEntry entry, IProperty property, BsonDocument document)
     {
+        if (LiteDBGeneratedValues.ShouldGenerate(entry, property)) return;
         var value = entry.GetCurrentValue(property);
         if (!property.IsNullable && value == null)
         {
             throw new DbUpdateException($"Required property '{property.DeclaringType.DisplayName()}.{property.Name}' is null.", [entry]);
         }
-        document[property.Name] = LiteDBValueSerialization.Write(property, value);
+        document.WriteLiteDBValue(property, LiteDBValueSerialization.Write(property, value));
     }
 
     private void WriteIndexes(BsonDocument document)
@@ -184,7 +190,7 @@ internal sealed class LiteDBTable
         if (document == null) throw ConcurrencyException(entry);
         foreach (var property in _properties.Where(p => p.IsConcurrencyToken))
         {
-            var persisted = LiteDBValueSerialization.Read(property, document[property.Name]);
+            var persisted = LiteDBValueSerialization.Read(property, document.ReadLiteDBValue(property));
             if (!property.GetValueComparer().Equals(persisted, entry.GetOriginalValue(property))) throw ConcurrencyException(entry);
         }
     }

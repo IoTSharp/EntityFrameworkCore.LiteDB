@@ -2,7 +2,7 @@ using LiteDB;
 
 namespace IoTSharp.EntityFrameworkCore.LiteDB.Storage.Internal;
 
-internal sealed class LiteDBStore : ILiteDBStore, IDisposable
+internal sealed partial class LiteDBStore : ILiteDBStore, IDisposable
 {
     private readonly LiteDatabase _database;
     private readonly object _lock = new();

@@ -1,4 +1,5 @@
 using IoTSharp.EntityFrameworkCore.LiteDB.Storage.Internal;
+using LiteDB;
 
 namespace IoTSharp.EntityFrameworkCore.LiteDB.Query.Internal;
 
@@ -13,12 +14,36 @@ internal sealed class LiteDBQueryPlan
     public int? TakeParameter { get; private set; }
     public List<Expression> Parameters { get; } = [];
     public List<IProperty> ParameterProperties { get; } = [];
+    public IProperty AggregateProperty { get; private set; }
+    public Type AggregateResultType { get; private set; }
     private bool _scalar;
+    private readonly List<(IProperty Property, bool Descending)> _ordering = [];
 
     public static bool TryCreate(Expression expression, out LiteDBQueryPlan plan, bool scalar = false)
     {
         plan = new LiteDBQueryPlan { _scalar = scalar };
         return plan.Parse(expression, 0) && plan.EntityType.FindDiscriminatorProperty() == null;
+    }
+
+    public static bool TryCreateAggregate(MethodCallExpression call, out LiteDBQueryPlan plan)
+    {
+        plan = null;
+        if (call.Method.DeclaringType != typeof(Enumerable) || call.Arguments.Count != 2
+            || call.Method.Name is not (nameof(Enumerable.Sum) or nameof(Enumerable.Average)
+                or nameof(Enumerable.Min) or nameof(Enumerable.Max))
+            || !TryCreate(call.Arguments[0], out var candidate, scalar: true)
+            || candidate.SkipParameter != null || candidate.TakeParameter != null) return false;
+        var selector = call.Arguments[1].UnwrapLambdaFromQuote();
+        if (!candidate.TryProperty(selector.Body, out var property)) return false;
+        var type = property.ClrType.UnwrapNullableType();
+        // Integer Sum/Average have overflow and rounding contracts unlike BSON aggregates.
+        // Decimal SUM/AVG and exact numeric MIN/MAX can preserve the CLR result contract.
+        if (call.Method.Name is nameof(Enumerable.Sum) or nameof(Enumerable.Average)
+            ? type != typeof(decimal) : !(type.IsInteger() || type == typeof(decimal))) return false;
+        candidate.AggregateProperty = property;
+        candidate.AggregateResultType = call.Type;
+        plan = candidate;
+        return true;
     }
 
     private bool Parse(Expression expression, int depth)
@@ -34,11 +59,13 @@ internal sealed class LiteDBQueryPlan
 
         switch (call.Method.Name)
         {
-            case nameof(Enumerable.Select) when _scalar:
+            case nameof(Enumerable.Select):
                 var projection = call.Arguments[1].UnwrapLambdaFromQuote();
                 return projection.Body is NewExpression { Type: var bufferType, Arguments.Count: 1 } projected
                     && bufferType == typeof(ValueBuffer) && projected.Arguments[0] is NewArrayExpression array
-                    && array.Expressions.All(value => StripConvert(value) is ConstantExpression || TryProperty(value, out _));
+                    && (_scalar
+                        ? array.Expressions.All(value => StripConvert(value) is ConstantExpression || TryProperty(value, out _))
+                        : IsIdentityProjection(array));
             case nameof(Enumerable.Where) when SkipParameter == null && TakeParameter == null:
                 var lambda = call.Arguments[1].UnwrapLambdaFromQuote();
                 if (!TryPredicate(lambda.Body, out var filter)) return false;
@@ -49,8 +76,21 @@ internal sealed class LiteDBQueryPlan
                 if (SkipParameter != null || TakeParameter != null) return false;
                 var key = call.Arguments[1].UnwrapLambdaFromQuote();
                 if (!TryProperty(key.Body, out var property)) return false;
-                OrderBy = "$." + property.Name;
+                _ordering.Clear();
+                _ordering.Add((property, call.Method.Name == nameof(Enumerable.OrderByDescending)));
+                OrderBy = NativePath(property);
                 Descending = call.Method.Name == nameof(Enumerable.OrderByDescending);
+                return true;
+            case nameof(Enumerable.ThenBy):
+            case nameof(Enumerable.ThenByDescending):
+                if (SkipParameter != null || TakeParameter != null || _ordering.Count == 0) return false;
+                var nextKey = call.Arguments[1].UnwrapLambdaFromQuote();
+                if (!TryProperty(nextKey.Body, out var nextProperty)) return false;
+                _ordering.Add((nextProperty, call.Method.Name == nameof(Enumerable.ThenByDescending)));
+                // LiteDB exposes one OrderBy. BSON arrays compare lexicographically, so a composite
+                // key preserves ThenBy while decimal negation avoids Int64.MinValue overflow.
+                OrderBy = "[" + string.Join(", ", _ordering.Select(order => SortKey(order.Property, order.Descending))) + "]";
+                Descending = false;
                 return true;
             case nameof(Enumerable.Skip) when SkipParameter == null && TakeParameter == null:
                 SkipParameter = AddParameter(call.Arguments[1], null);
@@ -60,6 +100,23 @@ internal sealed class LiteDBQueryPlan
                 return true;
             default: return false;
         }
+    }
+
+    private bool IsIdentityProjection(NewArrayExpression array)
+    {
+        // The store returns the complete metadata-indexed row. A root Select can be removed only
+        // if it keeps that exact shape; arbitrary projections still run in the EF shaper pipeline.
+        if (array.Expressions.Count != EntityType.GetProperties().Count()) return false;
+        for (var i = 0; i < array.Expressions.Count; i++)
+        {
+            var value = array.Expressions[i];
+            if (StripConvert(value) is not MethodCallExpression { Method.Name: "ValueBufferTryReadValue", Arguments.Count: 3 } read
+                || read.Arguments[1] is not ConstantExpression { Value: int index } || index != i
+                || read.Arguments[2] is not ConstantExpression { Value: IProperty property }
+                || property.DeclaringType is not IEntityType || property.GetIndex() != i
+                || !HasOnlyIdentityOrBoxingConversions(value, property.ClrType.UnwrapNullableType())) return false;
+        }
+        return true;
     }
 
     private bool TryPredicate(Expression expression, out string sql)
@@ -84,9 +141,10 @@ internal sealed class LiteDBQueryPlan
             {
                 var parameter = AddParameter(binary.Right, property);
                 var op = binary.NodeType switch { ExpressionType.Equal => "=", ExpressionType.NotEqual => "!=", ExpressionType.LessThan => "<", ExpressionType.LessThanOrEqual => "<=", ExpressionType.GreaterThan => ">", _ => ">=" };
-                sql = $"$.{property.Name} {op} @p{parameter}";
+                var path = NativePath(property);
+                sql = $"{path} {op} @p{parameter}";
                 if (binary.NodeType is not ExpressionType.Equal and not ExpressionType.NotEqual)
-                    sql = $"($.{property.Name} != null AND @p{parameter} != null AND ({sql}))";
+                    sql = $"({path} != null AND @p{parameter} != null AND ({sql}))";
                 return true;
             }
         }
@@ -96,16 +154,20 @@ internal sealed class LiteDBQueryPlan
 
     private bool TryProperty(Expression expression, out IProperty property)
     {
+        var originalExpression = expression;
         var originalType = expression.Type.UnwrapNullableType();
         expression = StripConvert(expression);
         if (expression is MethodCallExpression call && call.Method.Name == "ValueBufferTryReadValue"
             && call.Arguments.Count == 3 && call.Arguments[2] is ConstantExpression { Value: IProperty candidate }
+            && candidate.DeclaringType is IEntityType
             && candidate.GetTypeMapping().Converter == null
-            && (candidate.ClrType.UnwrapNullableType() == originalType || originalType == typeof(object)))
+            && (candidate.ClrType.UnwrapNullableType() == originalType || originalType == typeof(object))
+            && HasOnlyIdentityOrBoxingConversions(originalExpression, candidate.ClrType.UnwrapNullableType()))
         {
             var type = candidate.ClrType.UnwrapNullableType();
             // BSON comparisons have different string/culture and special-type semantics. Keep those in the EF projection path.
-            if ((type.IsInteger() || type == typeof(decimal))
+            if ((type.IsInteger() || type == typeof(decimal) || type == typeof(DateTime)
+                    || type == typeof(TimeOnly) || type == typeof(TimeSpan))
                 && candidate.Name.All(c => char.IsLetterOrDigit(c) || c == '_'))
             {
                 property = candidate;
@@ -114,6 +176,37 @@ internal sealed class LiteDBQueryPlan
         }
         property = null;
         return false;
+    }
+
+    private static bool HasOnlyIdentityOrBoxingConversions(Expression expression, Type propertyType)
+    {
+        for (var depth = 0; depth < 64 && expression is UnaryExpression { NodeType: ExpressionType.Convert or ExpressionType.ConvertChecked } unary; depth++)
+        {
+            if (unary.Type.UnwrapNullableType() != propertyType && unary.Type != typeof(object)) return false;
+            expression = unary.Operand;
+        }
+        return true;
+    }
+
+    public BsonValue CreateParameter(int index, object value)
+    {
+        if (ParameterProperties[index] is not { } property) return new BsonValue(value);
+        var serialized = LiteDBValueSerialization.Write(property, value);
+        return property.ClrType.UnwrapNullableType() == typeof(DateTime) && !serialized.IsNull
+            ? serialized["ticks"] : serialized;
+    }
+
+    private static string NativePath(IProperty property)
+        => "$." + property.Name + (property.ClrType.UnwrapNullableType() == typeof(DateTime) ? ".ticks" : "");
+
+    private static string SortKey(IProperty property, bool descending)
+    {
+        var path = NativePath(property);
+        // Each key has a null-rank and a numeric value. Reversing only the number would
+        // incorrectly leave null first for descending nullable keys.
+        return descending
+            ? $"[IIF({path} = null, 1, 0), IIF({path} = null, 0, 0 - DECIMAL({path}))]"
+            : $"[IIF({path} = null, 0, 1), IIF({path} = null, 0, DECIMAL({path}))]";
     }
 
     private int AddParameter(Expression value, IProperty property)

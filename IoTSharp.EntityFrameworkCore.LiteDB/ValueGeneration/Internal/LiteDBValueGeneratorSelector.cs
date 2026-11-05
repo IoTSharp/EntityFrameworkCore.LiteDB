@@ -9,6 +9,11 @@ internal sealed class LiteDBValueGeneratorSelector(
 {
     public override bool TrySelect(IProperty property, ITypeBase typeBase, out ValueGenerator valueGenerator)
     {
+        if (property.ValueGenerated != ValueGenerated.Never && LiteDBGeneratedValues.FindExpression(property) != null)
+        {
+            valueGenerator = null;
+            return false;
+        }
         if (property.GetValueGeneratorFactory() == null && property.FindAnnotation("Relational:DefaultValue")?.Value is { } literal)
         {
             valueGenerator = new LiteDBLiteralValueGenerator(property.GetValueComparer().Snapshot(literal));

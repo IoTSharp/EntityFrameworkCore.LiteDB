@@ -94,7 +94,8 @@ internal class EntityProjectionExpression : Expression, IPrintableExpression
     {
         if (property.DeclaringType is not IEntityType entityType)
         {
-            if (EntityType != property.DeclaringType)
+            if (!EntityType.IsAssignableFrom(property.DeclaringType.ContainingEntityType)
+                && !property.DeclaringType.ContainingEntityType.IsAssignableFrom(EntityType))
             {
                 throw new InvalidOperationException(
                     LiteDBStrings.UnableToBindMemberToEntityProjection("property", property.Name, EntityType.DisplayName()));

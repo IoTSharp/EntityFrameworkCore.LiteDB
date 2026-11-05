@@ -10,6 +10,7 @@ internal sealed class LiteDBConventionSetBuilder(ProviderConventionSetBuilderDep
     {
         var conventions = base.CreateConventionSet();
         conventions.ModelFinalizingConventions.Add(new LiteralDefaultConvention());
+        conventions.ModelFinalizingConventions.Add(new LiteDBComplexPresenceConvention());
         return conventions;
     }
 

@@ -7,7 +7,22 @@
 
 The provider implements its own services, store interfaces, query nodes, BSON mapping and transactions against EF Core's provider extension points. It has **no dependency on Microsoft.EntityFrameworkCore.InMemory**, implements no InMemory interfaces, and inherits no InMemory provider classes. Relevant upstream query algorithms and test scenarios are adapted as source references with attribution in [UPSTREAM.md](UPSTREAM.md).
 
-LiteDB executes the supported native numerical filter/order/page plans and Count/LongCount/Any aggregates. Remaining supported compositions operate over rows read from LiteDB; this does not imply complete query pushdown. See [SUPPORT.md](SUPPORT.md) for tested behavior and specific gaps.
+LiteDB executes supported numerical/date-tick filters, mixed-direction ThenBy, paging, Count/LongCount/Any and exact numeric aggregates. Remaining supported compositions preserve CLR semantics over LiteDB rows; see [SUPPORT.md](SUPPORT.md) for execution and indexing boundaries.
+
+EF10 ExecuteUpdate/ExecuteDelete now use LiteDB bulk writes inside atomic transactions, with affected-row counts and no ChangeTracker refresh. Required, optional and nested ComplexProperty values persist as nested BSON, including null presence, full projections and complex leaf updates. The ToJson container-name mapping is a BSON alias; it does not imply relational JSON-column semantics. Complex collections remain an explicit provider gap.
+
+Configure LiteDB expressions for defaults and computed values using the provider's public extensions:
+
+```csharp
+modelBuilder.Entity<Line>().Property(x => x.CreatedLabel)
+    .HasLiteDBDefaultExpression("'new'");
+modelBuilder.Entity<Line>().Property(x => x.Total)
+    .HasLiteDBComputedExpression("$.Price * $.Quantity");
+```
+
+Generated expressions run through LiteDB, return values to tracked entities, and participate in SaveChanges/Bulk rollback. They read ordinary fields; generated-on-generated dependencies and key generation expressions are rejected. SQL expressions and automatic rowversion remain unsupported.
+
+Actual compiled-model generation and UseModel CRUD/reopen have passed; query precompilation and NativeAOT have separate failing/unrun gates documented in [docs/compiled-model.md](docs/compiled-model.md). For explicit legacy data export and mapped atomic import, use [LiteDBDataArchive](docs/migration-archive.md); no automatic in-place or binary compatibility is promised.
 
 ## Install
 

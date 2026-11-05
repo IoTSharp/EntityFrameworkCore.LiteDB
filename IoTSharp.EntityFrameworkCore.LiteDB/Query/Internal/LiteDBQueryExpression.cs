@@ -3,6 +3,7 @@
 
 using IoTSharp.EntityFrameworkCore.LiteDB.Query.Internal;
 using ExpressionExtensions = Microsoft.EntityFrameworkCore.Infrastructure.ExpressionExtensions;
+using IoTSharp.EntityFrameworkCore.LiteDB.Storage.Internal;
 
 namespace IoTSharp.EntityFrameworkCore.LiteDB.Query.Internal;
 
@@ -57,7 +58,7 @@ internal partial class LiteDBQueryExpression : Expression, IPrintableExpression
         ServerQueryExpression = new LiteDBTableExpression(entityType);
         var propertyExpressionsMap = new Dictionary<IProperty, MethodCallExpression>();
         var selectorExpressions = new List<Expression>();
-        foreach (var property in entityType.GetAllBaseTypesInclusive().SelectMany(et => et.GetDeclaredProperties()))
+        foreach (var property in entityType.GetAllBaseTypesInclusive().SelectMany(et => et.GetLiteDBDeclaredProperties()))
         {
             var propertyExpression = CreateReadValueExpression(property.ClrType, property.GetIndex(), property);
             selectorExpressions.Add(propertyExpression);
@@ -81,7 +82,7 @@ internal partial class LiteDBQueryExpression : Expression, IPrintableExpression
                         Constant(e.GetDiscriminatorValue(), discriminatorProperty.ClrType)))
                     .Aggregate((l, r) => OrElse(l, r));
 
-                foreach (var property in derivedEntityType.GetDeclaredProperties())
+                foreach (var property in derivedEntityType.GetLiteDBDeclaredProperties())
                 {
                     // We read nullable value from property of derived type since it could be null.
                     var typeToRead = property.ClrType.MakeNullable();
@@ -199,7 +200,7 @@ internal partial class LiteDBQueryExpression : Expression, IPrintableExpression
         EntityProjectionExpression AddEntityProjection(EntityProjectionExpression entityProjectionExpression)
         {
             var readExpressionMap = new Dictionary<IProperty, MethodCallExpression>();
-            foreach (var property in entityProjectionExpression.EntityType.GetPropertiesInHierarchy())
+            foreach (var property in entityProjectionExpression.EntityType.GetLiteDBPropertiesInHierarchy())
             {
                 var expression = entityProjectionExpression.BindProperty(property);
                 selectorExpressions.Add(expression);
@@ -265,7 +266,7 @@ internal partial class LiteDBQueryExpression : Expression, IPrintableExpression
                     case EntityProjectionExpression entityProjectionExpression:
                     {
                         var indexMap = new Dictionary<IProperty, int>();
-                        foreach (var property in entityProjectionExpression.EntityType.GetPropertiesInHierarchy())
+                        foreach (var property in entityProjectionExpression.EntityType.GetLiteDBPropertiesInHierarchy())
                         {
                             selectorExpressions.Add(entityProjectionExpression.BindProperty(property));
                             indexMap[property] = selectorExpressions.Count - 1;
@@ -306,7 +307,7 @@ internal partial class LiteDBQueryExpression : Expression, IPrintableExpression
                 if (expression is EntityProjectionExpression entityProjectionExpression)
                 {
                     var indexMap = new Dictionary<IProperty, int>();
-                    foreach (var property in entityProjectionExpression.EntityType.GetPropertiesInHierarchy())
+                    foreach (var property in entityProjectionExpression.EntityType.GetLiteDBPropertiesInHierarchy())
                     {
                         selectorExpressions.Add(entityProjectionExpression.BindProperty(property));
                         indexMap[property] = selectorExpressions.Count - 1;
@@ -383,7 +384,7 @@ internal partial class LiteDBQueryExpression : Expression, IPrintableExpression
                     && value2 is EntityProjectionExpression entityProjection2)
                 {
                     var map = new Dictionary<IProperty, MethodCallExpression>();
-                    foreach (var property in entityProjection1.EntityType.GetPropertiesInHierarchy())
+                    foreach (var property in entityProjection1.EntityType.GetLiteDBPropertiesInHierarchy())
                     {
                         var expressionToAdd1 = entityProjection1.BindProperty(property);
                         var expressionToAdd2 = entityProjection2.BindProperty(property);
@@ -674,7 +675,7 @@ internal partial class LiteDBQueryExpression : Expression, IPrintableExpression
         var outerIndex = selectorExpressions.Count;
         var innerEntityProjection = (EntityProjectionExpression)innerQueryExpression._projectionMapping[new ProjectionMember()];
         var innerReadExpressionMap = new Dictionary<IProperty, MethodCallExpression>();
-        foreach (var property in innerEntityProjection.EntityType.GetPropertiesInHierarchy())
+        foreach (var property in innerEntityProjection.EntityType.GetLiteDBPropertiesInHierarchy())
         {
             var propertyExpression = innerEntityProjection.BindProperty(property);
             propertyExpression = MakeReadValueNullable(propertyExpression);
@@ -874,7 +875,7 @@ internal partial class LiteDBQueryExpression : Expression, IPrintableExpression
                     (EntityProjectionExpression)((LiteDBQueryExpression)projectionBindingExpression.QueryExpression)
                     .GetProjection(projectionBindingExpression);
                 var readExpressions = new Dictionary<IProperty, MethodCallExpression>();
-                foreach (var property in entityProjectionExpression.EntityType.GetPropertiesInHierarchy())
+                foreach (var property in entityProjectionExpression.EntityType.GetLiteDBPropertiesInHierarchy())
                 {
                     readExpressions[property] = (MethodCallExpression)GetGroupingKey(
                         entityProjectionExpression.BindProperty(property),
@@ -1164,7 +1165,7 @@ internal partial class LiteDBQueryExpression : Expression, IPrintableExpression
     private static EntityProjectionExpression MakeEntityProjectionNullable(EntityProjectionExpression entityProjectionExpression)
     {
         var readExpressionMap = new Dictionary<IProperty, MethodCallExpression>();
-        foreach (var property in entityProjectionExpression.EntityType.GetPropertiesInHierarchy())
+        foreach (var property in entityProjectionExpression.EntityType.GetLiteDBPropertiesInHierarchy())
         {
             readExpressionMap[property] = MakeReadValueNullable(entityProjectionExpression.BindProperty(property));
         }
@@ -1272,7 +1273,7 @@ internal partial class LiteDBQueryExpression : Expression, IPrintableExpression
         bool makeNullable)
     {
         var readExpressionMap = new Dictionary<IProperty, MethodCallExpression>();
-        foreach (var property in entityProjectionExpression.EntityType.GetPropertiesInHierarchy())
+        foreach (var property in entityProjectionExpression.EntityType.GetLiteDBPropertiesInHierarchy())
         {
             var expression = entityProjectionExpression.BindProperty(property);
             if (makeNullable)

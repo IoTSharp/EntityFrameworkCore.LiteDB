@@ -231,6 +231,22 @@ internal class LiteDBExpressionTranslatingExpressionVisitor : ExpressionVisitor
             return QueryCompilationContext.NotTranslatedExpression;
         }
 
+        if (binaryExpression.NodeType is ExpressionType.Equal or ExpressionType.NotEqual)
+        {
+            var complexReference = newLeft is StructuralTypeReferenceExpression { StructuralType: IComplexType }
+                && newRight is ConstantExpression { Value: null } ? (StructuralTypeReferenceExpression)newLeft
+                : newRight is StructuralTypeReferenceExpression { StructuralType: IComplexType }
+                    && newLeft is ConstantExpression { Value: null } ? (StructuralTypeReferenceExpression)newRight : null;
+            if (complexReference?.StructuralType is IComplexType complex)
+            {
+                Expression present = complex.ComplexProperty.IsNullable
+                    ? BindProperty(complexReference, complex.ContainingEntityType.FindProperty(
+                        (string)complex.ComplexProperty.FindAnnotation("LiteDB:ComplexPresenceProperty")!.Value!)!, typeof(bool))!
+                    : Expression.Constant(true);
+                return binaryExpression.NodeType == ExpressionType.Equal ? Expression.Not(present) : present;
+            }
+        }
+
         if (binaryExpression.NodeType is ExpressionType.Equal or ExpressionType.NotEqual
             // Visited expression could be null, We need to pass MemberInitExpression
             && TryRewriteEntityEquality(
@@ -364,6 +380,13 @@ internal class LiteDBExpressionTranslatingExpressionVisitor : ExpressionVisitor
         {
             return false;
         }
+
+        // EF uses EqualsExact for DateTimeOffset change-tracking snapshots. Query
+        // equality follows CLR operators, which compare instants across offsets.
+        if (property!.ClrType.UnwrapNullableType() == typeof(DateTimeOffset)
+            && property.FindAnnotation("ValueComparer") == null
+            && property.FindAnnotation("ValueComparerType") == null)
+            return false;
 
         MethodInfo? objectEquals = null;
         MethodInfo? exactMatch = null;
@@ -1131,6 +1154,19 @@ internal class LiteDBExpressionTranslatingExpressionVisitor : ExpressionVisitor
         if (property != null)
         {
             return BindProperty(typeReference, property, type);
+        }
+
+        var complexProperty = member.MemberInfo != null
+            ? entityType.FindComplexProperty(member.MemberInfo)
+            : entityType.FindComplexProperty(member.Name!);
+        if (complexProperty != null && typeReference.Parameter != null)
+        {
+            // Complex scalar values share the containing entity's value buffer. EF's
+            // materializer recursively creates the complex object from its leaf metadata.
+            return new StructuralTypeReferenceExpression(new StructuralTypeShaperExpression(
+                complexProperty.ComplexType,
+                typeReference.Parameter.ValueBufferExpression,
+                complexProperty.IsNullable));
         }
 
         AddTranslationErrorDetails(

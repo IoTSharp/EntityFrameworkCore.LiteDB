@@ -9,6 +9,12 @@ internal partial class LiteDBShapedQueryCompilingExpressionVisitor : ShapedQuery
 {
     protected override Expression VisitMethodCall(MethodCallExpression methodCallExpression)
     {
+        if (LiteDBQueryPlan.TryCreateAggregate(methodCallExpression, out var aggregatePlan))
+        {
+            return Convert(Call(Convert(QueryCompilationContext.QueryContextParameter, typeof(LiteDBQueryContext)),
+                typeof(LiteDBQueryContext).GetMethod(nameof(LiteDBQueryContext.ExecuteScalar))!,
+                Constant(aggregatePlan), NewArrayInit(typeof(object), aggregatePlan.Parameters), Constant(methodCallExpression.Method.Name)), methodCallExpression.Type);
+        }
         if (methodCallExpression.Method.DeclaringType == typeof(Enumerable)
             && methodCallExpression.Arguments.Count == 1
             && methodCallExpression.Method.Name is nameof(Enumerable.Count) or nameof(Enumerable.LongCount) or nameof(Enumerable.Any)
@@ -56,6 +62,8 @@ internal partial class LiteDBShapedQueryCompilingExpressionVisitor : ShapedQuery
     {
         switch (extensionExpression)
         {
+            case LiteDBBulkExpression bulk:
+                return CompileBulk(bulk);
             case LiteDBTableExpression liteDBTableExpression:
                 return Call(
                     TableMethodInfo,
@@ -80,7 +88,11 @@ internal partial class LiteDBShapedQueryCompilingExpressionVisitor : ShapedQuery
         var shaperExpression = new ShaperExpressionProcessingExpressionVisitor(
                 this, liteDBQueryExpression, QueryCompilationContext.QueryTrackingBehavior == QueryTrackingBehavior.TrackAll)
             .ProcessShaper(shapedQueryExpression.ShaperExpression);
-        var innerEnumerable = Visit(liteDBQueryExpression.ServerQueryExpression);
+        var innerEnumerable = LiteDBQueryPlan.TryCreate(liteDBQueryExpression.ServerQueryExpression, out var rootPlan)
+            ? Call(Convert(QueryCompilationContext.QueryContextParameter, typeof(LiteDBQueryContext)),
+                typeof(LiteDBQueryContext).GetMethod(nameof(LiteDBQueryContext.ExecuteNative))!,
+                Constant(rootPlan), NewArrayInit(typeof(object), rootPlan.Parameters))
+            : Visit(liteDBQueryExpression.ServerQueryExpression);
 
         return New(
             typeof(QueryingEnumerable<>).MakeGenericType(shaperExpression.ReturnType).GetConstructors()[0],

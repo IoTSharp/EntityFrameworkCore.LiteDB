@@ -38,22 +38,24 @@ public sealed class UnsupportedFeatureTests
     }
 
     [Fact]
-    public void Bulk_execute_update_and_delete_report_unsupported()
+    public void Bulk_execute_update_and_delete_use_native_writes()
     {
         using var store = new ProviderTestStore();
         using var db = store.CreateContext();
-        Assert.Throws<InvalidOperationException>(() => db.Customers.Where(c => c.Id == 1).ExecuteDelete());
-        Assert.Throws<InvalidOperationException>(() => db.Customers.ExecuteUpdate(setters => setters.SetProperty(c => c.City, "Paris")));
-        Assert.Equal(3, db.Customers.Count());
+        Assert.Equal(1, db.Customers.Where(c => c.Id == 1).ExecuteDelete());
+        Assert.Equal(2, db.Customers.ExecuteUpdate(setters => setters.SetProperty(c => c.City, "Paris")));
+        Assert.Equal(2, db.Customers.Count(c => c.City == "Paris"));
     }
 
     [Fact]
-    public void Complex_properties_fail_early_with_support_reference()
+    public void Complex_properties_are_validated_and_persisted()
     {
         using var root = new LiteDBDatabaseRoot();
         using var db = new ComplexContext(new DbContextOptionsBuilder<ComplexContext>().UseLiteDB(":memory:", root).Options);
-        var exception = Assert.Throws<NotSupportedException>(() => db.Model);
-        Assert.Contains("LDB-006", exception.Message);
+        db.Add(new ComplexEntity { Address = new Address { Street = "Urumqi" } });
+        Assert.Equal(1, db.SaveChanges());
+        db.ChangeTracker.Clear();
+        Assert.Equal("Urumqi", db.Set<ComplexEntity>().Single().Address.Street);
     }
 
     private sealed class ComplexContext(DbContextOptions<ComplexContext> options) : DbContext(options)

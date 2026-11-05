@@ -13,6 +13,9 @@ namespace IoTSharp.EntityFrameworkCore.LiteDB.Query.Internal;
 /// </summary>
 internal class LiteDBQueryContext : QueryContext
 {
+    public int ExecuteBulk(IEntityType entityType, Func<IEnumerable<ValueBuffer>> source, IProperty[] properties, Func<ValueBuffer, object[]> values)
+        => Store.ExecuteBulk(entityType, source, properties, values, CancellationToken, _sessionId);
+
     public object ExecuteScalar(LiteDBQueryPlan plan, object[] parameters, string operation)
     {
         CancellationToken.ThrowIfCancellationRequested();

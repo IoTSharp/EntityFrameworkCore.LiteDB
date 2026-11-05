@@ -1,4 +1,30 @@
-# LiteDB / EF Core 10 后续实现交接
+# LiteDB / EF Core 10 后续能力实现结果
+
+更新：2026-11-06，Asia/Shanghai。唯一工作区仍为 `D:\source\EntityFrameworkCore.LiteDB`，无新 worktree。此次实际启动 Bulk、Complex、Native 三个子智能体并行实现，主智能体串行接线及验证。下面旧交接保留为历史基线，不代表仍待启动的任务。
+
+## 当前能力与结果
+
+- LDB-004：同步/异步 ExecuteUpdate/Delete、参数/旧行 setter、affected rows、分页、失败整批回滚、显式事务、取消；更新真实调用 LiteDB UpdateMany，删除调用 DeleteMany；不物化/刷新 Tracker。complex 叶子含 optional presence、computed 重算已集成。单集合来源以外、owned/继承、PK/computed直接赋值/整complex setter仍明确拒绝。
+- LDB-005：新增数值混合方向 ThenBy 原生复合排序、DateTime ticks、TimeOnly/TimeSpan 和精确 decimal SUM/AVG、数值MIN/MAX；通过按 ContextId 关联的诊断证明执行路径。字符串文化、DateTimeOffset、float/NaN、强制数值转换、complex路径继续 CLR fallback。修复默认 DateTimeOffset comparer 把 UTC 相等误改为 EqualsExact 的问题。
+- LDB-006：必需/可选/嵌套 ComplexProperty，叶子/完整投影、跟踪、null vs全默认对象、AutoDetectChanges关闭、BSON重开；ToJson名字作为BSON容器别名，拒绝碰撞及保留字段。complex collection仍是provider未实现，模型校验明确失败，不能写成LiteDB无法存BSON数组。
+- LDB-007：公开 HasLiteDBDefaultExpression / HasLiteDBComputedExpression，实际LiteDB表达式、EF sidecar回写、失败撤销与同context重试、Never/显式默认值优先、Bulk计算值重算。它们不是LiteDB数据库触发器；外部直接写文件不会自动重算。SQL及rowversion仍明确拒绝。
+- LDB-008：设计服务和type mapping codegen已接通，compiled model生成、编译、UseModel同步/异步CRUD、重开、ModelBuildCount=0均PASS。预生成查询仍FAIL（Constant(LiteDBQueryPlan)无法生成代码）；NativeAOT publish实际exit1、保留IL告警并报告Cross-OS compilation错误，原生程序运行NOT_RUN。见 docs/compiled-model.md；不把环境失败归因为LiteDB。
+- LDB-009：LiteDBDataArchive显式集合导出、版本化BSON JSONL、映射导入、数量/版本/限额/尾记录校验、原子事务、用户Tracker/事务保护。旧6826e3a布局fixture迁移通过；未运行旧EF6程序集，不承诺自动原地升级或二进制兼容。
+- LDB-001/002/003：保留真实关系API/ambient/savepoint失败证据，新增nested transaction及未加载FK/cascade行为回归；替代方案仍为应用升级、单context本地事务、EF客户端级联。
+
+完整 Windows Release 首轮集成为 **133/133 PASS、0 skipped，0 build warnings/errors**，证据 `artifacts/tests/phase3-full.trx`。最终门禁和隔离包消费的实际结果在 `artifacts/validation/ef10-followup-final-receipt.json`，不得用旧65项或首轮133项替代最终源码验收。Compiled probe源码在validation/CompiledModelProbe，生成文件明确不入库；PackageConsumer只引用最终NuGet包，无project reference，必须使用新的专属NUGET_PACKAGES目录。
+
+## 同工作区其他会话与远端边界
+
+开工HEAD为305890e；期间其他会话在同一master提交并推送1ee4af3（tag发布流程/诊断修复）和d145613（Ubuntu单平台CI），它们已存在于当前提交祖先，未reset/覆盖。当前CI须以实时.github/workflows/build.yml为准，已改为Ubuntu restore/build/test/pack且只tag触发publish。本任务只推源码分支，不推tag、不发布NuGet。工作区新出现的`.playwright-cli/`属于其他会话，保留且不stage/清理。
+
+GitHub先前3条Dependabot告警独立回读均为fixed（旧LiteDB5.0.12、jQuery3.3.1），本轮`dotnet list package --vulnerable --include-transitive --no-restore`未报告漏洞。最终远端CI仍须绑定本次功能提交精确SHA回读，不能拿基线或其他会话CI替代。
+
+各阶段遵守45分钟/15轮上限，外部命令180秒上限、单连接Cordonix串行调用、低并发构建。原生小探针已核验归属后清理；新消费者与probe运行临时数据库由finally回收。保留最终证据和包产物；上一阶段被策略拒绝的缓存仍原样保留，不绕过删除。所有worker均未单独提交或推送。
+
+---
+
+# 上一阶段历史交接（2026-11-05）
 
 日期：2026-11-05，Asia/Shanghai。工作区：`D:\source\EntityFrameworkCore.LiteDB`。远端：`https://github.com/IoTSharp/EntityFrameworkCore.LiteDB`，当前分支及跟踪分支为 `master` / `origin/master`。本文件与第一次 EF Core 10 升级代码一起提交；精确提交与推送状态由交接主会话回读，新会话开始时重新核对 Git。
 

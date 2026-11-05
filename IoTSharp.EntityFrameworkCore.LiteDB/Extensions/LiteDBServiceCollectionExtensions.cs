@@ -57,10 +57,12 @@ namespace IoTSharp.Extensions.DependencyInjection
         {
             Check.NotNull(serviceCollection, nameof(serviceCollection));
 
+#pragma warning disable EF1001 // Provider registration intentionally uses EF's internal change detector contract.
             var builder = new EntityFrameworkServicesBuilder(serviceCollection)
                 .TryAdd<LoggingDefinitions, LiteDBLoggingDefinitions>()
                 .TryAdd<IDatabaseProvider, DatabaseProvider<LiteDBOptionsExtension>>()
                 .TryAdd<IModelValidator, LiteDBModelValidator>()
+                .TryAdd<IChangeDetector, IoTSharp.EntityFrameworkCore.LiteDB.ChangeTracking.Internal.LiteDBChangeDetector>()
                 .TryAdd<IProviderConventionSetBuilder, LiteDBConventionSetBuilder>()
                 .TryAdd<IValueGeneratorSelector, LiteDBValueGeneratorSelector>()
                 .TryAdd<IDatabase, LiteDBDatabase>()
@@ -75,6 +77,7 @@ namespace IoTSharp.Extensions.DependencyInjection
                     b => b
                         .TryAddSingleton<LiteDBStoreCache, LiteDBStoreCache>()
                         .TryAddScoped<ILiteDBStoreProvider, LiteDBStoreProvider>());
+#pragma warning restore EF1001
 
             builder.TryAddCoreServices();
 

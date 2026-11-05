@@ -17,4 +17,5 @@ internal interface ILiteDBStore
     void RollbackTransaction(Guid sessionId);
     IReadOnlyList<object[]> ExecuteQuery(IoTSharp.EntityFrameworkCore.LiteDB.Query.Internal.LiteDBQueryPlan plan, object[] parameters, CancellationToken cancellationToken, Guid sessionId);
     object ExecuteScalar(IoTSharp.EntityFrameworkCore.LiteDB.Query.Internal.LiteDBQueryPlan plan, object[] parameters, string operation, Guid sessionId);
+    int ExecuteBulk(IEntityType entityType, Func<IEnumerable<ValueBuffer>> source, IProperty[] properties, Func<ValueBuffer, object[]> values, CancellationToken cancellationToken, Guid sessionId);
 }

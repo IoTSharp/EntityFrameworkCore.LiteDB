@@ -3,6 +3,7 @@
 
 using static System.Linq.Expressions.Expression;
 using ExpressionExtensions = Microsoft.EntityFrameworkCore.Infrastructure.ExpressionExtensions;
+using IoTSharp.EntityFrameworkCore.LiteDB.Storage.Internal;
 
 namespace IoTSharp.EntityFrameworkCore.LiteDB.Query.Internal;
 
@@ -33,6 +34,8 @@ internal partial class LiteDBShapedQueryCompilingExpressionVisitor
         private readonly List<ParameterExpression> _variables = [];
         private readonly List<Expression> _expressions = [];
         private readonly Dictionary<ParameterExpression, Dictionary<IProperty, int>> _materializationContextBindings = new();
+        private IEntityType? _materializingEntityType;
+        private Dictionary<IProperty, int>? _materializingIndexMap;
 
         public ShaperExpressionProcessingExpressionVisitor(
             LiteDBShapedQueryCompilingExpressionVisitor liteDBShapedQueryCompilingExpressionVisitor,
@@ -75,9 +78,21 @@ internal partial class LiteDBShapedQueryCompilingExpressionVisitor
                     {
                         variable = Parameter(shaper.StructuralType.ClrType);
                         _variables.Add(variable);
+                        var previousEntityType = _materializingEntityType;
+                        var previousIndexMap = _materializingIndexMap;
+                        _materializingEntityType = shaper.StructuralType.ContainingEntityType;
+                        if (shaper.ValueBufferExpression is ProjectionBindingExpression binding)
+                            _materializingIndexMap = ((LiteDBQueryExpression)binding.QueryExpression).GetProjection(binding)
+                                .GetConstantValue<Dictionary<IProperty, int>>();
                         var innerShaper =
                             _liteDBShapedQueryCompilingExpressionVisitor.InjectStructuralTypeMaterializers(shaper);
+                        if (shaper.StructuralType is IComplexType { ComplexProperty.IsNullable: true } nullableComplex)
+                            innerShaper = new ComplexNullCheckRemovingVisitor(nullableComplex.ClrType).Visit(innerShaper);
                         innerShaper = Visit(innerShaper);
+                        if (shaper.StructuralType is IComplexType complexType && complexType.ComplexProperty.IsNullable)
+                            innerShaper = Condition(ReadPresence(complexType.ComplexProperty), innerShaper, Default(innerShaper.Type));
+                        _materializingEntityType = previousEntityType;
+                        _materializingIndexMap = previousIndexMap;
                         _expressions.Add(Assign(variable, innerShaper));
                         _mapping[key] = variable;
                     }
@@ -202,6 +217,16 @@ internal partial class LiteDBShapedQueryCompilingExpressionVisitor
 
         protected override Expression VisitBinary(BinaryExpression binaryExpression)
         {
+            if (binaryExpression is { NodeType: ExpressionType.Assign, Left: MemberExpression member }
+                && _materializingEntityType != null && _materializingIndexMap != null)
+            {
+                var complex = FindNullableComplex(_materializingEntityType, member.Member);
+                if (complex != null)
+                {
+                    var materializer = new ComplexNullCheckRemovingVisitor(complex.ClrType).Visit(binaryExpression.Right);
+                    return member.Assign(Condition(ReadPresence(complex), Visit(materializer), Default(binaryExpression.Right.Type)));
+                }
+            }
             if (binaryExpression is { NodeType: ExpressionType.Assign, Left: ParameterExpression parameterExpression }
                 && parameterExpression.Type == typeof(MaterializationContext))
             {
@@ -227,6 +252,33 @@ internal partial class LiteDBShapedQueryCompilingExpressionVisitor
             }
 
             return base.VisitBinary(binaryExpression);
+        }
+
+        private Expression ReadPresence(IComplexProperty complex)
+        {
+            var name = (string)complex.FindAnnotation(LiteDBComplexPresence.PropertyAnnotation)!.Value!;
+            var property = complex.DeclaringType.ContainingEntityType.FindProperty(name)!;
+            return _valueBufferParameter!.CreateValueBufferReadValueExpression(typeof(bool), _materializingIndexMap![property], property);
+        }
+
+        private static IComplexProperty? FindNullableComplex(ITypeBase type, MemberInfo member)
+        {
+            foreach (var complex in type.GetComplexProperties())
+            {
+                if (complex.IsNullable && (complex.PropertyInfo == member || complex.FieldInfo == member)) return complex;
+                if (FindNullableComplex(complex.ComplexType, member) is { } nested) return nested;
+            }
+            return null;
+        }
+
+        private sealed class ComplexNullCheckRemovingVisitor(Type complexClrType) : ExpressionVisitor
+        {
+            protected override Expression VisitConditional(ConditionalExpression conditional)
+                // EF's default materializer treats all-null scalar leaves as a null
+                // complex value. BSON preserves a distinct object-presence contract.
+                => conditional.Type == complexClrType && conditional.IfTrue is DefaultExpression
+                    ? Visit(conditional.IfFalse)
+                    : base.VisitConditional(conditional);
         }
 
         protected override Expression VisitMethodCall(MethodCallExpression methodCallExpression)
