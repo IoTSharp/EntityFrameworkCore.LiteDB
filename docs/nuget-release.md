@@ -1,5 +1,20 @@
 # Tag releases to NuGet.org
 
+## 1.1.0 feature release — 2026-11-06
+
+Published `v1.1.0` / NuGet `1.1.0` from exact commit `30cd16022b8ccf295b876cf0a50857a2949566d5`. The [tag workflow](https://github.com/IoTSharp/EntityFrameworkCore.LiteDB/actions/runs/42083398903) passed version validation, build, all **133 tests without skips**, pack and NuGet upload. The release reused the existing repository API key; no duplicate key or upload was created.
+
+- [Public NuGet 1.1.0](https://www.nuget.org/packages/IoTSharp.EntityFrameworkCore.LiteDB/1.1.0)
+- [GitHub Release v1.1.0](https://github.com/IoTSharp/EntityFrameworkCore.LiteDB/releases/tag/v1.1.0), with the exact CI-produced nupkg attached.
+- Fresh public consumers passed async CRUD, bulk update/delete, optional complex leaf updates, computed values, reopen, rollback and compiled queries. Package repository commit and assembly informational version identify the release SHA; public DLL equals CI DLL byte-for-byte.
+- Runtime dependencies remain only LiteDB and Microsoft.EntityFrameworkCore. EF Design is private and does not propagate through the package.
+
+NuGet accepted the upload before its V3 index synchronized. The version page and official V2 download were already readable, so a NuGet.org V2-only fresh consumer was verified first, without retrying the upload. The V3 index subsequently listed 1.1.0, and a second completely fresh consumer restored from **NuGet.org V3 only** and passed the same checks. The public DLL SHA-256 is `b99c646a8e63454fc8a350c9a68622618d2780327014f1181c3a7f97e9ffec27`; the CI nupkg SHA-256 is `e6d4639b95c7d3a6e209176b9427a376b0210928dfed7b010de3074561b49f0b`.
+
+Detailed local receipts/artifacts: `artifacts/release-1.1.0-ci/final-receipt.json`. The release tag stays on the validated source commit; these later documentation changes do not move the tag. Complex collections, precompiled query generation and NativeAOT acceptance remain outside this release's supported contract, as stated in SUPPORT.md.
+
+## First release and reusable workflow
+
 The GitHub Actions workflow in `.github/workflows/build.yml` handles both validation and publication for `IoTSharp.EntityFrameworkCore.LiteDB`.
 
 The first public release of this new package ID is `v1.0.0` / NuGet `1.0.0`. The `v1.0.1` commands below illustrate a subsequent patch release; the old `MaikeBing.EntityFrameworkCore.LiteDB` package has its own version history.

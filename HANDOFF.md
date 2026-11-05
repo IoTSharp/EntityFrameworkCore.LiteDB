@@ -2,6 +2,8 @@
 
 更新：2026-11-06，Asia/Shanghai。唯一工作区仍为 `D:\source\EntityFrameworkCore.LiteDB`，无新 worktree。此次实际启动 Bulk、Complex、Native 三个子智能体并行实现，主智能体串行接线及验证。下面旧交接保留为历史基线，不代表仍待启动的任务。
 
+**最新发布状态：1.1.0 已发布。** 用户随后明确授权发布新版本，tag `v1.1.0` 指向 `30cd16022b8ccf295b876cf0a50857a2949566d5`；发布 CI `42083398903` 的 build/test/pack/publish 全部通过，133项测试无跳过。NuGet.org V2与V3分别使用全新缓存消费通过，公开DLL与CI artifact逐字节一致，源码SHA匹配；GitHub Release附同一CI包。证据见 `docs/nuget-release.md` 和 `artifacts/release-1.1.0-ci/final-receipt.json`。下文“尚未发布”描述是这次发布授权前的历史状态，不能继续当作当前状态。
+
 ## 当前能力与结果
 
 - LDB-004：同步/异步 ExecuteUpdate/Delete、参数/旧行 setter、affected rows、分页、失败整批回滚、显式事务、取消；更新真实调用 LiteDB UpdateMany，删除调用 DeleteMany；不物化/刷新 Tracker。complex 叶子含 optional presence、computed 重算已集成。单集合来源以外、owned/继承、PK/computed直接赋值/整complex setter仍明确拒绝。
