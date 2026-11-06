@@ -1,6 +1,8 @@
 [![License](https://img.shields.io/github/license/maikebing/EntityFrameworkCore.LiteDB.svg)](https://github.com/maikebing/EntityFrameworkCore.LiteDB/blob/master/LICENSE)
 [![NuGet](https://img.shields.io/nuget/v/IoTSharp.EntityFrameworkCore.LiteDB.svg)](https://www.nuget.org/packages/IoTSharp.EntityFrameworkCore.LiteDB/)
 
+[English](README.md) | [简体中文](README.zh-CN.md)
+
 # IoTSharp.EntityFrameworkCore.LiteDB
 
 `IoTSharp.EntityFrameworkCore.LiteDB` is an EF Core 10 provider that persists EF entities in LiteDB collections. The package targets `net10.0` and is tested with `Microsoft.EntityFrameworkCore 10.0.14` and the latest stable `LiteDB 5.0.21`. Dependencies are restricted to EF Core 10 and LiteDB 5.
